@@ -2,7 +2,7 @@ import { Probot } from "probot";
 
 const labelsByRepo = new Map<string, Map<string, object>>();
 
-export = (app: Probot) => {
+export default (app: Probot) => {
   app.on("issues.opened", async (context) => {
     console.log("Issue opened :D");
     const issueComment = context.issue({
