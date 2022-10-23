@@ -1,6 +1,12 @@
 import { Probot } from "probot";
 
+// Label cache
 const labelsByRepo = new Map<string, Map<string, object>>();
+
+const baseBranchLabels: [RegExp, string][] = [
+  [/^develop$/, "develop"],
+  [/^new-master$/, "production"],
+];
 
 type PullEventNames =
   | "pull_request.opened"
@@ -33,18 +39,31 @@ export default (app: Probot) => {
 
       // App labels
       const files = await context.octokit.pulls.listFiles(pr);
+      const filenames = files.data.map((f) => f.filename);
+
       const appLabels = Array.from(
         new Set(
-          files.data
+          filenames
             // Only files matching /app/xyz/something
-            .filter((f) => /^app\/(.*?)\/.*$/.test(f.filename))
+            .filter((f) => /^app\/(.*?)\/.*$/.test(f))
             // Split on slash, extract 2nd = app name
-            .map((f) => f.filename.split("/")[1])
+            .map((f) => f.split("/")[1])
         ).values()
       ).map((l) => `app: ${l}`);
       console.log("App labels", appLabels);
 
-      const botLabels = [...appLabels];
+      // Repo root k8s labels
+      const k8sLabels = filenames.some((f) => /^k8s-?.*?\//.test(f))
+        ? ["k8s"]
+        : [];
+
+      // Base branch labels
+      const { data: pullRequest } = await context.octokit.pulls.get(pr);
+      const targetLabels = baseBranchLabels
+        .filter(([expr]) => expr.test(pullRequest.base.ref))
+        .map(([, label]) => label);
+
+      const botLabels = [...appLabels, ...k8sLabels, ...targetLabels];
       if (!botLabels.length) return;
 
       // Get/cache repo labels
