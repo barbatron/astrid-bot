@@ -26,6 +26,10 @@ export default (app: Probot) => {
 
   pullEventNames.forEach((eventName: PullEventNames) =>
     app.on(eventName, async (context) => {
+      console.log("*", context.name);
+      const pr = context.pullRequest();
+      const issue = context.issue();
+      console.log("Issue info", issue);
 
     const issue = context.issue();
     console.log("Issue info", issue);
