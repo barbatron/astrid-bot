@@ -2,6 +2,11 @@ import { Probot } from "probot";
 
 const labelsByRepo = new Map<string, Map<string, object>>();
 
+type PullEventNames =
+  | "pull_request.opened"
+  | "pull_request.reopened"
+  | "pull_request.synchronize";
+
 export default (app: Probot) => {
   app.on("issues.opened", async (context) => {
     console.log("Issue opened :D");
@@ -13,11 +18,14 @@ export default (app: Probot) => {
     console.log("Done");
   });
 
-  app.on("pull_request.synchronize", async (context) => {
-    console.log("pull_request.opened");
+  const pullEventNames: PullEventNames[] = [
+    "pull_request.opened",
+    "pull_request.reopened",
+    "pull_request.synchronize",
+  ];
 
-    const pr = context.pullRequest();
-    console.log("Pull request opened!", pr);
+  pullEventNames.forEach((eventName: PullEventNames) =>
+    app.on(eventName, async (context) => {
 
     const issue = context.issue();
     console.log("Issue info", issue);
