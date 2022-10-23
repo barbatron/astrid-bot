@@ -14,23 +14,12 @@ type PullEventNames =
   | "pull_request.synchronize";
 
 export default (app: Probot) => {
-  app.on("issues.opened", async (context) => {
-    console.log("Issue opened :D");
-    const issueComment = context.issue({
-      body: "Thanks for opening this issue!",
-    });
-    console.log("Creating comment");
-    await context.octokit.issues.createComment(issueComment);
-    console.log("Done");
-  });
-
   const pullEventNames: PullEventNames[] = [
     "pull_request.opened",
     "pull_request.reopened",
     "pull_request.synchronize",
   ];
-
-  pullEventNames.forEach((eventName: PullEventNames) =>
+  pullEventNames.forEach((eventName) =>
     app.on(eventName, async (context) => {
       console.log("*", context.name);
       const pr = context.pullRequest();
