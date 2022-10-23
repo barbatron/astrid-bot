@@ -31,70 +31,78 @@ export default (app: Probot) => {
       const issue = context.issue();
       console.log("Issue info", issue);
 
-    const issue = context.issue();
-    console.log("Issue info", issue);
+      // App labels
+      const files = await context.octokit.pulls.listFiles(pr);
+      const appLabels = Array.from(
+        new Set(
+          files.data
+            // Only files matching /app/xyz/something
+            .filter((f) => /^app\/(.*?)\/.*$/.test(f.filename))
+            // Split on slash, extract 2nd = app name
+            .map((f) => f.filename.split("/")[1])
+        ).values()
+      ).map((l) => `app: ${l}`);
+      console.log("App labels", appLabels);
 
-    // App labels
-    const files = await context.octokit.pulls.listFiles(pr);
-    const appLabels = Array.from(
-      new Set(
-        files.data
-          // Only files matching /app/xyz/something
-          .filter((f) => /^app\/(.*?)\/.*$/.test(f.filename))
-          // Split on slash, extract 2nd = app name
-          .map((f) => f.filename.split("/")[1])
-      ).values()
-    ).map((l) => `app:${l}`);
+      const botLabels = [...appLabels];
+      if (!botLabels.length) return;
 
-    const allLabels = [...appLabels];
-    if (!allLabels.length) return;
+      // Get/cache repo labels
+      const repoLabels = await (async () => {
+        const key = `${pr.owner}/${pr.repo}`;
+        if (labelsByRepo.has(key)) return labelsByRepo.get(key);
+        const labels = await context.octokit.request(
+          "GET /repos/{owner}/{repo}/labels",
+          {
+            owner: pr.owner,
+            repo: pr.repo,
+          }
+        );
+        const labelsByName = new Map<string, typeof labels.data[0]>(
+          labels.data.map((label) => [label.name, label])
+        );
+        labelsByRepo.set(key, labelsByName);
+        return labelsByName;
+      })();
 
-    // Get/cache repo labels
-    const repoLabels = await (async () => {
-      const key = `${pr.owner}/${pr.repo}`;
-      if (labelsByRepo.has(key)) return labelsByRepo.get(key);
-      const labels = await context.octokit.request(
-        "GET /repos/{owner}/{repo}/labels",
-        {
-          owner: pr.owner,
-          repo: pr.repo,
-        }
+      const labelsToCreate = botLabels.filter((l) => !repoLabels?.has(l));
+      console.log("Labels to create:", labelsToCreate);
+
+      for (const name of labelsToCreate) {
+        console.log("Creating label:", name);
+        const description = `Files under app/${name.split(":").pop()}`;
+        const label = await context.octokit.request(
+          "POST /repos/{owner}/{repo}/labels",
+          {
+            owner: pr.owner,
+            repo: pr.repo,
+            name,
+            description,
+          }
+        );
+        // Add to cache
+        repoLabels?.set(label.data.name, label.data);
+      }
+
+      console.log("Fetching existing labels on issue");
+      const existingLabels = await context.octokit.issues.listLabelsOnIssue(pr);
+      const existingLabelNames = existingLabels.data.map((label) => label.name);
+
+      // If all (wanted) already exist, bail:
+      if (botLabels.every((l) => existingLabelNames.includes(l))) return;
+
+      // Union existing + bot labels
+      const issueLabels = Array.from(
+        new Set([...existingLabelNames, ...botLabels]).values()
       );
-      const labelsByName = new Map<string, typeof labels.data[0]>(
-        labels.data.map((label) => [label.name, label])
-      );
-      labelsByRepo.set(key, labelsByName);
-      return labelsByName;
-    })();
 
-    const labelsToCreate = allLabels.filter((l) => !repoLabels?.has(l));
-    console.log("Labels to create:", labelsToCreate);
-
-    for (const labelToCreate of labelsToCreate) {
-      const name = `app:${labelToCreate}`;
-      console.log("Creating label:", name);
-      await context.octokit.request("POST /repos/{owner}/{repo}/labels", {
+      console.log("Updating PR labels", issueLabels);
+      await context.octokit.issues.setLabels({
         owner: pr.owner,
         repo: pr.repo,
-        name,
-        description: `Files under app/${labelToCreate}`,
+        issue_number: pr.pull_number,
+        labels: issueLabels,
       });
-    }
-
-    // TODO: Check first if PR has labels already, only set missings
-
-    console.log("Setting PR labels", allLabels);
-    await context.octokit.issues.setLabels({
-      owner: pr.owner,
-      repo: pr.repo,
-      issue_number: pr.pull_number,
-      labels: allLabels,
-    });
-
-    // console.log("Writing comment");
-    // await context.octokit.issues.createComment({
-    //   ...issue,
-    //   body,
-    // });
-  });
+    })
+  );
 };
