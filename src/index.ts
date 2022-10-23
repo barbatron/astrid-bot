@@ -85,7 +85,9 @@ export default (app: Probot) => {
       }
 
       console.log("Fetching existing labels on issue");
-      const existingLabels = await context.octokit.issues.listLabelsOnIssue(pr);
+      const existingLabels = await context.octokit.issues.listLabelsOnIssue(
+        issue
+      );
       const existingLabelNames = existingLabels.data.map((label) => label.name);
 
       // If all (wanted) already exist, bail:
