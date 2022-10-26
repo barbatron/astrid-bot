@@ -4,8 +4,8 @@ import { Probot } from "probot";
 const labelsByRepo = new Map<string, Map<string, object>>();
 
 const baseBranchLabels: [RegExp, string][] = [
-  [/^develop$/, "develop"],
-  [/^new-master$/, "production"],
+  [/^staging$/, "staging"],
+  [/^main/, "production"],
 ];
 
 type PullEventNames =
